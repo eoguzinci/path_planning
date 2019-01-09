@@ -218,7 +218,7 @@ int main() {
             if(!car_ahead)
               counter = 0;
 
-            int patience_time = 10;
+            int patience_time = 50; // 0.02ms*50 = 1s
 
             // if we are in middle lane
             if(lane == 1){
@@ -258,18 +258,17 @@ int main() {
             }
 
             // if we are in the left lane
-            // if we are in the right lane
             if(lane == 0){
               if(too_close){
                 ref_vel -= max_acc;
                 if( counter > patience_time){
                   if(right_go){
-                    lane = lane-1;
+                    lane++;
                   } else {
                     if (car_speed > car_ahead_speed)
                       ref_vel -= max_acc;
                     else
-                      lane--
+                      lane++
                   }
                 }
               }
