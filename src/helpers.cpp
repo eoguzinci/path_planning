@@ -135,3 +135,6 @@ vector<double> getXY(double s, double d, vector<double> maps_s, vector<double> m
 
 double mph2ms(double x)
 { return x*0.44704; }
+
+double ms2mph(double x)
+{ return x*2.23694; }

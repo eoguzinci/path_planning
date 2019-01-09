@@ -5,6 +5,7 @@
 #include <math.h>
 #include <vector>
 #include <numeric>
+#include <<cfloat>>
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "spline.h"
@@ -27,5 +28,6 @@ long double vectorNorm(Iter_T first, Iter_T last) {
 }
 
 double mph2ms(double);
+double ms2mph(double);
 
 #endif //PATH_PLANNING_HELPER_FUNCTIONS_H

@@ -84,10 +84,19 @@ int main() {
   const double lane_size = 4;
 
   // maximum acceleration
-  const double max_acc = 10;
+  const double max_acc = 0.224;
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &lane, &ref_vel, &num_points, &sampling, &lane_size](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
-                     uWS::OpCode opCode) {
+  // speed of the car_ahead
+  static double car_ahead_speed = numeric_limits<double>::max();
+
+  // counter
+  static unsigned int counter = 0;
+
+  // reaction time
+  const int reaction_time = 2;
+
+  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &lane, &ref_vel, &num_points, &sampling, &lane_size, &max_acc, &car_ahead_speed
+    , &counter, & reaction_time](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -138,40 +147,135 @@ int main() {
 
             bool too_close = false;
 
-            // find ref_v to use
+            // PERCEPTION
             // to check if we have a car ahead in the same lane
             // we need to go through the sensor_fusion list
             // sensor_fusion list holds [ id, x, y, vx, vy, s, d] for each element
+            bool car_ahead = false;
+            bool left_go = true;
+            bool right_go = true;
             for (int i = 0; i < sensor_fusion.size(); i++)
             {
               float d = sensor_fusion[i][6]; // to determine the lane of the other car
               
-              if( d > (lane_size*lane)  && d < (lane_size+lane_size*lane))
-              {
-                double vx = sensor_fusion[i][3];
-                double vy = sensor_fusion[i][4];
-                double check_speed = sqrt(vx*vx+vy+vy);
-                double check_s = sensor_fusion[i][5];
+              int check_lane;
 
-                // if the car is ahead and distance is lower than 30m.
-                // lower the velocity 
-                check_s += (double)prev_size * sampling * check_speed;
-
-                if( check_s > car_s && check_s - car_s < 30){
-                  // Do some logic here to lower the velocity lower reference velocity
-                  // ref_vel = check_speed; //mph
-                  too_close = true;
-                }
-
+              if ( d > 0 && d < lane_size ){
+                check_lane = 0;
+              }else if( d > lane_size && d < 2 * lane_size ){
+                check_lane = 1;
+              } else if ( d > lane_size && d < 2 * lane_size ){
+                check_lane = 2;
+              }else{
+                check_lane = -2;
               }
 
+              double vx = sensor_fusion[i][3];
+              double vy = sensor_fusion[i][4];
+              double check_speed = sqrt(vx*vx+vy+vy);
+              double check_s = sensor_fusion[i][5];
+
+              // if the car is ahead and distance is lower than 30m.
+              // lower the velocity 
+              check_s += (double)prev_size * sampling * check_speed;             
+              if( check_lane == lane )
+              {
+                if( check_s > car_s ){
+                  // Do some logic here to lower the velocity lower reference velocity
+                  car_ahead = true;
+                  car_ahead_speed = check_speed;
+                  counter++ 
+                  // ref_vel = check_speed; //mph
+                  // 2 s. response time 
+                  if ( check_s - car_s < mph2ms(car_speed)*reaction_time - mph2ms(max_acc)*pow(reaction_time,2)/2){
+                    too_close = true;
+                  }
+                }
+              }
+              if ( check_lane = lane-1)
+              {
+                if(check_s >= car_s){
+                  left_go = false;
+                } else{
+                  if (check_speed > car_speed && car_s - check-s > (check_speed - car_speed) * reaction_time){
+                    left_go = false;
+                  }
+                }
+              }
+              if ( check_lane = lane+1)
+              {
+                if(check_s >= car_s){
+                  right_go = false;
+                } else{
+                  if (check_speed > car_speed && car_s - check-s > (check_speed - car_speed) * reaction_time){
+                    right_go = false;
+                  }
+                }
+              }
             }
 
-            if(too_close){
-              ref_vel -= 0.224;
+            // ACTION
+            if(!car_ahead)
+              counter = 0;
+
+            int patience_time = 10;
+
+            // if we are in middle lane
+            if(lane == 1){
+              if(too_close){
+                if( counter > patience_time)
+                  if(left_go)
+                    lane--;
+                  else if(right_go)
+                    lane++;
+                  else{
+                    if (car_speed > car_ahead_speed)
+                      ref_vel -= max_acc;
+                  }
+              }
+              else if( ref_vel < 49.5){
+                ref_vel += max_acc;
+              }
             }
-            else if( ref_vel < 49.5){
-              ref_vel += 0.224;
+
+            // if we are in the right lane
+            if(lane == 2){
+              if(too_close){
+                if( counter > patience_time){
+                  if(left_go){
+                    lane--;
+                  } else {
+                    if (car_speed > car_ahead_speed)
+                      ref_vel -= max_acc;
+                    else
+                      lane--
+                  }
+                }
+              }
+              else if( ref_vel < 49.5){
+                ref_vel += max_acc;
+              } 
+            }
+
+            // if we are in the left lane
+            // if we are in the right lane
+            if(lane == 0){
+              if(too_close){
+                ref_vel -= max_acc;
+                if( counter > patience_time){
+                  if(right_go){
+                    lane = lane-1;
+                  } else {
+                    if (car_speed > car_ahead_speed)
+                      ref_vel -= max_acc;
+                    else
+                      lane--
+                  }
+                }
+              }
+              else if( ref_vel < 49.5){
+                ref_vel += max_acc;
+              } 
             }
 
             // Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
