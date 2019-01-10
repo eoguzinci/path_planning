@@ -5,7 +5,8 @@
 #include <math.h>
 #include <vector>
 #include <numeric>
-#include <<cfloat>>
+#include <cfloat>
+#include <string>
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "spline.h"
