@@ -86,10 +86,13 @@ int main() {
   // maximum acceleration
   const double max_acc = 0.224;
 
-  // reaction time
-  const int reaction_time = 1;
+  // reaction time [s]
+  const double reaction_time = 1.5;
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &lane, &ref_vel, &num_points, &sampling, &lane_size, &max_acc, & reaction_time](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+  // speed limit
+  const double speed_limit = 50.0;
+
+  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &lane, &ref_vel, &num_points, &sampling, &lane_size, &max_acc, & reaction_time, &speed_limit](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -139,7 +142,7 @@ int main() {
             }
 
             // speed of the car_ahead
-            static double car_ahead_speed = numeric_limits<double>::max();
+            double car_ahead_speed = numeric_limits<double>::max();
             // counter
             static unsigned int counter = 0;
 
@@ -155,21 +158,21 @@ int main() {
             bool right_go = true;
             vector<string> car_features = {"id", "x", "y", "vx", "vy", "s", "d"};
             vector<vector<int>> cars_lane(3);
-            double speed_left = numeric_limits<double>::max();
-            double speed_right = numeric_limits<double>::max();
-            double speed_same = numeric_limits<double>::max();
+            double speed_left = mph2ms(speed_limit);
+            double speed_right = mph2ms(speed_limit);
+            double speed_same = mph2ms(speed_limit);
             double distance_ahead = numeric_limits<double>::max() ;
             for (int i = 0; i < sensor_fusion.size(); i++)
             {
-              //show the vehicles
-              if(timer%50 == 0){
-                cout << "[";
-                for (int j = 0; j < sensor_fusion[i].size(); j++)
-                {
-                  cout << car_features[j] << ": " << sensor_fusion[i][j] << "; " ;
-                }
-                cout << "]" << endl;
-              }
+              // //show the vehicles
+              // if(timer%50 == 0){
+              //   cout << "[";
+              //   for (int j = 0; j < sensor_fusion[i].size(); j++)
+              //   {
+              //     cout << car_features[j] << ": " << sensor_fusion[i][j] << "; " ;
+              //   }
+              //   cout << "]" << endl;
+              // }
               
               float d = sensor_fusion[i][6]; // to determine the lane of the other car
               
@@ -189,7 +192,7 @@ int main() {
               }else if( d >= lane_size && d <= 2 * lane_size ){
                 check_lane = 1;
                 cars_lane[1].push_back(check_id);
-              } else if ( d > 2*lane_size && d < 3 * lane_size ){
+              } else if ( d >= 2*lane_size && d < 3 * lane_size ){
                 check_lane = 2;
                 cars_lane[2].push_back(check_id);
               }else{
@@ -207,11 +210,13 @@ int main() {
                   if ( distance_ahead > check_s - car_s ){
                     distance_ahead = check_s - car_s;
                     car_ahead_speed = check_speed;
+                    // cout << "AHEAD | ID: " << check_id << "; dist: " << distance_ahead << "; speed: " << ms2mph(check_speed) << "; diff: " << car_speed - ms2mph(check_speed) << endl;
                     if ( distance_ahead < mph2ms(car_speed)*reaction_time - mph2ms(max_acc)*pow(reaction_time,2)/2){
-                      too_close = true;                    
+                      too_close = true;
+                      cout << "+";                    
                     }
                   }
-                  if ( check_speed < speed_same)
+                  if ( check_speed < speed_same )
                     speed_same = check_speed;
                   // ref_vel = check_speed; //mph
                   // 2 s. response time
@@ -228,13 +233,13 @@ int main() {
                     speed_left = check_speed;
                 }
 
-                if(check_s - car_s >= -15.0 && check_s - car_s < 20.0){
+                if(check_s - car_s >= -20.0 && check_s - car_s < 20.0){
                   left_go = false;
                 } 
-                else if (car_s - check_s > 15.0){
+                else if (car_s - check_s > 20.0){
                   // cout << "Stop: " << (mph2ms(check_speed) - mph2ms(car_speed)) * reaction_time << endl;
                   // cout << "Dist: " << car_s - check_s << endl;
-                  if (car_s - check_s < (mph2ms(check_speed) - mph2ms(car_speed)) * reaction_time){
+                  if (car_s - check_s < (check_speed - mph2ms(car_speed)) * reaction_time){
                     left_go = false;
                   }
                 }
@@ -248,13 +253,13 @@ int main() {
                     speed_right = check_speed;
                 }
 
-                if(check_s - car_s >= -15.0 && check_s -car_s < 20.0){
+                if(check_s - car_s >= -20.0 && check_s -car_s < 20.0){
                   right_go = false;
                 } 
-                else if (car_s - check_s > 15.0){
+                else if (car_s - check_s > 20.0){
                   // cout << "Stop: " << (mph2ms(check_speed) - mph2ms(car_speed)) * reaction_time << endl;
                   // cout << "Dist: " << car_s - check_s << endl;
-                  if ( car_s - check_s < (mph2ms(check_speed) - mph2ms(car_speed)) * reaction_time){
+                  if ( car_s - check_s < (check_speed - mph2ms(car_speed)) * reaction_time){
                     right_go = false;
                   }
                 }
@@ -277,11 +282,20 @@ int main() {
             // if we are in middle lane
             if(lane == 1){
               if(too_close){
-                if(left_go && speed_left > speed_same)
-                  lane--;
-                else if(right_go && speed_right > speed_same)
-                  lane++;
-                else{
+                if(counter > patience_time){
+                  if(left_go && speed_left > speed_same){
+                    lane--;
+                    counter = 0;
+                  }
+                  else if(right_go && speed_right > speed_same){
+                    lane++;
+                    counter = 0;
+                  }
+                  else{
+                    if (car_speed > ms2mph(car_ahead_speed))
+                      ref_vel -= max_acc;
+                  }
+                }else{
                   if (car_speed > ms2mph(car_ahead_speed))
                     ref_vel -= max_acc;
                 }
@@ -298,12 +312,14 @@ int main() {
                 if( counter > patience_time){
                   if(left_go){
                     lane--;
+                    counter = 0;
                   } else {
                     if (car_speed > ms2mph(car_ahead_speed))
                       ref_vel -= max_acc;
                   }
                 }else{
-                  ref_vel -= max_acc;
+                  if (car_speed > ms2mph(car_ahead_speed))
+                    ref_vel -= max_acc;
                 }
               }
               else if( ref_vel < 49.5){
@@ -318,12 +334,14 @@ int main() {
                 if( counter > patience_time){
                   if(right_go){
                     lane++;
+                    counter = 0;
                   } else {
                     if (car_speed > ms2mph(car_ahead_speed))
                       ref_vel -= max_acc;
                   }
                 } else {
-                  ref_vel -= max_acc;
+                  if (car_speed > ms2mph(car_ahead_speed))
+                    ref_vel -= max_acc;
                 }
               }
               else if( ref_vel < 49.5){
@@ -331,11 +349,12 @@ int main() {
               } 
             }
 
-            if (timer%50 == 0){
+            // output each 0.02ms x 50 = 1s
+            if (timer%10 == 0){
               std::cout << "|" << std::setw(3) << cars_lane[0].size() << "|" << std::setw(3) << cars_lane[1].size() << "|" << std::setw(3) << cars_lane[1].size() << "|" << std::endl;
-              std::cout << "| left: " << std::setw(8) << speed_left << "| same:" << std::setw(8) << speed_same << "| right:" << std::setw(8) << speed_right << "|" << std::endl;
+              std::cout << "| left: " << std::setw(8) << ms2mph(speed_left) << "| same:" << std::setw(8) << ms2mph(speed_same) << "| right:" << std::setw(8) << ms2mph(speed_right) << "|" << std::endl;
               cout<< "bored:" << (counter > patience_time ? "Y" : "N") << "; ahead: " << (too_close ? "N" : "Y") <<"; left: " << (left_go ? "Y" : "N") << "; right: " << (right_go ? "Y" : "N") << endl;
-              cout << "ahead speed: " << car_ahead_speed << "; ego speed: " << car_speed << endl;
+              cout << "distance: " << distance_ahead << "; speed diff: " << car_speed - ms2mph(car_ahead_speed) << endl;
             }
 
             // Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
