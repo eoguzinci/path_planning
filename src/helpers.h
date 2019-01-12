@@ -7,6 +7,7 @@
 #include <numeric>
 #include <cfloat>
 #include <string>
+#include <algorithm>
 #include "Eigen-3.3/Eigen/Core"
 #include "Eigen-3.3/Eigen/QR"
 #include "spline.h"

@@ -186,15 +186,15 @@ int main() {
               // if the car is ahead and distance is lower than 30m.
               // lower the velocity 
               check_s += (double)prev_size * sampling * check_speed;
-              if ( d > 0 && d < lane_size ){
+              if ( check_s > car_s && check_s - car_s < 50  && d > 0 && d < lane_size ){
                 check_lane = 0;
-                cars_lane[0].push_back(check_id);
-              }else if( d >= lane_size && d <= 2 * lane_size ){
+                cars_lane[0].push_back(check_s - car_s);
+              }else if( check_s > car_s && check_s - car_s < 50  &&  d >= lane_size && d <= 2 * lane_size ){
                 check_lane = 1;
-                cars_lane[1].push_back(check_id);
-              } else if ( d >= 2*lane_size && d < 3 * lane_size ){
+                cars_lane[1].push_back(check_s - car_s);
+              } else if( check_s > car_s && check_s - car_s < 50  &&  d > 2*lane_size && d < 3 * lane_size ){
                 check_lane = 2;
-                cars_lane[2].push_back(check_id);
+                cars_lane[2].push_back(check_s - car_s);
               }else{
                 check_lane = -2;
               }
@@ -351,10 +351,18 @@ int main() {
 
             // output each 0.02ms x 50 = 1s
             if (timer%10 == 0){
-              std::cout << "|" << std::setw(3) << cars_lane[0].size() << "|" << std::setw(3) << cars_lane[1].size() << "|" << std::setw(3) << cars_lane[1].size() << "|" << std::endl;
+              std::cout << "|" << std::setw(3) << cars_lane[0].size() << "|" << std::setw(3) << cars_lane[1].size() << "|" << std::setw(3) << cars_lane[2].size() << "|" << std::endl;
+              for (int j = 0; j < 3; j++){
+                cout << "| " << setw(15);
+                sort(cars_lane[j].begin(), cars_lane[j].end());
+                for (int i = 0; i < cars_lane[j].size(); ++i){
+                  cout << cars_lane[j][i] << ", ";
+                } 
+              }
+              cout << " |" << endl;
               std::cout << "| left: " << std::setw(8) << ms2mph(speed_left) << "| same:" << std::setw(8) << ms2mph(speed_same) << "| right:" << std::setw(8) << ms2mph(speed_right) << "|" << std::endl;
               cout<< "bored:" << (counter > patience_time ? "Y" : "N") << "; ahead: " << (too_close ? "N" : "Y") <<"; left: " << (left_go ? "Y" : "N") << "; right: " << (right_go ? "Y" : "N") << endl;
-              cout << "distance: " << distance_ahead << "; speed diff: " << car_speed - ms2mph(car_ahead_speed) << endl;
+              cout << "range:" << car_s << "; distance: " << distance_ahead << "; speed diff: " << car_speed - ms2mph(car_ahead_speed) << endl;
             }
 
             // Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m

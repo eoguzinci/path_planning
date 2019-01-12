@@ -789,6 +789,8 @@ cfloat
 -
 string
 -
+algorithm
+-
 Eigen-3.3/Eigen/Core
 /media/osman/OS/Users/oguzi/CARND/Term3/CarND-Path-Planning-Project/src/Eigen-3.3/Eigen/Core
 Eigen-3.3/Eigen/QR
